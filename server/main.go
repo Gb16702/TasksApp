@@ -26,10 +26,10 @@ func main() {
 		DB_URL: os.Getenv("DB_URL"),
 	}
 
+	database.ConnectToDatabase(environmentVariables.DB_URL)
+
 	server.HandleServerStart(
 		environmentVariables.PORT,
 		environmentVariables.DB_URL,
 	);
-
-	database.ConnectToDatabase(environmentVariables.DB_URL)
 }
