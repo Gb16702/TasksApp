@@ -13,6 +13,7 @@ type environment struct {
 	FOUNDER_EMAIL 		string
 	EMAIL_API_KEY 		string
 	VERIFY_TEMPLATE_ID 	string
+	DEV_CLIENT_URL		string
 }
 
 func getEnvironmentVariables() environment {
@@ -20,10 +21,11 @@ func getEnvironmentVariables() environment {
 		FOUNDER_EMAIL: os.Getenv("FOUNDER_EMAIL"),
 		EMAIL_API_KEY: os.Getenv("EMAIL_API_KEY"),
 		VERIFY_TEMPLATE_ID: os.Getenv("VERIFY_TEMPLATE_ID"),
+		DEV_CLIENT_URL: os.Getenv("DEV_CLIENT_URL"),
 	}
 }
 
-func SendVerificationEmail(user models.User, email string) error {
+func SendVerificationEmail(user models.User, email, token string) error {
 
 		fmt.Println(getEnvironmentVariables())
 
@@ -38,7 +40,7 @@ func SendVerificationEmail(user models.User, email string) error {
 		 to := mail.NewEmail("", "delgeoffrey1@gmail.com");
 		 p.AddTos(to)
 
-		 p.SetDynamicTemplateData("url", "https://google.com");
+		 p.SetDynamicTemplateData("url", getEnvironmentVariables().DEV_CLIENT_URL + "register/" + token);
 
 		 m.AddPersonalizations(p)
 

@@ -1,8 +1,6 @@
 package routes
 
 import (
-	"fmt"
-
 	"regexp"
 	"todoapp/database"
 	"todoapp/database/models"
@@ -19,6 +17,11 @@ type body struct {
 	PasswordConfirm string `json:"passwordConfirm"`
 }
 
+type verifyEmailBody struct {
+	Email 			string `json:"email"`
+	Token 			string `json:"token"`
+}
+
 func HandleAuthRoutes(app *fiber.App) {
 
 	app.Post("/api/auth/register", func (c *fiber.Ctx) error {
@@ -33,11 +36,9 @@ func HandleAuthRoutes(app *fiber.App) {
 
 		err := c.BodyParser(&request);
 
-		fmt.Println(request, err)
-
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{
-				"message": "Requête",
+				"message": "Requête invalide",
 			});
 		}
 
@@ -100,17 +101,70 @@ func HandleAuthRoutes(app *fiber.App) {
 			})
 		}
 
+		utils.GenerateToken(request.Email);
 
-		error := utils.SendVerificationEmail(user,request.Email)
+		token, err := utils.GenerateToken(request.Email);
 
-		if error != nil {
+		if err != nil {
 			return c.Status(500).JSON(fiber.Map{
-				"message": "Erreur lors de l'envoi de l'email de vérification",
+				"message": "Erreur lors de la création du token",
 			})
+		} else {
+			error := utils.SendVerificationEmail(user,request.Email, token)
+
+			if error != nil {
+				return c.Status(500).JSON(fiber.Map{
+					"message": "Erreur lors de l'envoi de l'email de vérification",
+				})
+			}
 		}
 
 		return c.Status(200).JSON(fiber.Map{
 			"message" : "Compte créé avec succès",
+		})
+	})
+
+	app.Post("/api/auth/verify-email", func (c *fiber.Ctx) error {
+
+		if(c.Method() != fiber.MethodPost) {
+			return c.Status(405).JSON(fiber.Map{
+				"message": "Méthode non autorisée",
+			})
+		}
+
+		var request verifyEmailBody;
+
+		err := c.BodyParser(&request);
+
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{
+				"message": "Requête invalide",
+			});
+		}
+
+		requiredFields := []string{"user", "token"}
+
+		for _, field := range requiredFields {
+			switch field {
+			case "user":
+				if request.Email == "" {
+		 			return c.Status(400).JSON(fiber.Map{
+		 				"message": "L'email est requis",
+		 			})
+		 		}
+		 	}
+		}
+
+		verifiedUser := database.DB.Where("email = ?", request.Email).First(&models.User{}).Update("verified", true)
+
+		if verifiedUser.Error != nil {
+			return c.Status(500).JSON(fiber.Map{
+				"message": "Erreur lors de la mise à jour de l'utilisateur",
+			})
+		}
+
+		return c.Status(200).JSON(fiber.Map{
+			"message": "Email vérifié avec succès",
 		})
 	})
 }
