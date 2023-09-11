@@ -2,13 +2,13 @@ package routes
 
 import (
 	"regexp"
+	"todoapp/core/utils"
+	"todoapp/core/utils/validation"
 	"todoapp/database"
 	"todoapp/database/models"
-	"todoapp/core/utils"
 
 	"github.com/alexedwards/argon2id"
 	"github.com/gofiber/fiber/v2"
-
 )
 
 type body struct {
@@ -22,70 +22,75 @@ type verifyEmailBody struct {
 	Token 			string `json:"token"`
 }
 
+ type loginBody struct {
+ 	Email 			string `json:"email"`
+ 	Password 		string `json:"password"`
+ }
+
+ const (
+	ErrorMethod = "Méthode non autorisée"
+	ErrorInvalid = "Requête invalide"
+	ErrorInvalidIdentifiers = "Identifiants invalides"
+	ErrorRequiredEmail = "L'email est requis"
+	ErrorRequiredPassword = "Le mot de passe est requis"
+ )
+
 func HandleAuthRoutes(app *fiber.App) {
 
 	app.Post("/api/auth/register", func (c *fiber.Ctx) error {
 
 		if(c.Method() != fiber.MethodPost) {
-			return c.Status(405).JSON(fiber.Map{
-				"message": "Méthode non autorisée",
-			})
+			return utils.GenerateResponse(c, ErrorMethod, 405)
 		}
 
 		var request body;
-
 		err := c.BodyParser(&request);
-
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"message": "Requête invalide",
-			});
+			return utils.GenerateResponse(c, ErrorInvalid, 400)
 		}
 
-		requiredFields := []string{"email", "password", "passwordConfirm"}
+		requiredFields := []struct{
+			name 				string
+			err 				string
+		}{
+			{name: "email", err: ErrorRequiredEmail},
+			{name: "password", err: ErrorRequiredPassword},
+		}
 
 		pattern := regexp.MustCompile(`^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`)
 
 		for _, field := range requiredFields {
-			switch field {
+			switch field.name {
 			case "email":
-				if request.Email == "" {
-					return c.Status(400).JSON(fiber.Map{
-						"message": "L'email est requis",
-					})
-				} else if !pattern.MatchString(request.Email) {
-					return c.Status(400).JSON(fiber.Map{
-						"message": "L'email n'est pas valide",
-					})
+				isEmpty, err := validation.IsFieldEmpty(c, request.Email, ErrorRequiredEmail)
+				if isEmpty {
+					return err
+				}
+
+				if !pattern.MatchString(request.Email) {
+					return utils.GenerateResponse(c, "L'email n'est pas valide", 400)
 				}
 
 			case "password":
-				if request.Password == "" {
-					return c.Status(400).JSON(fiber.Map{
-						"message": "Le mot de passe est requis",
-					})
-				} else if request.Password != request.PasswordConfirm {
-					return c.Status(400).JSON(fiber.Map{
-						"message": "Les mots de passe ne correspondent pas",
-					})
+				isEmpty, err := validation.IsFieldEmpty(c, request.Password, ErrorRequiredPassword)
+				if isEmpty {
+					return err
+				}
+
+				if request.Password != request.PasswordConfirm {
+					return utils.GenerateResponse(c, "Les mots de passe ne correspondent pas", 400)
 				}
 			}
 		}
 
 		existingEmail := database.DB.Where("email = ?", request.Email).First(&models.User{})
-
 		if existingEmail.RowsAffected != 0 {
-			return c.Status(400).JSON(fiber.Map{
-				"message": "L'email existe déjà",
-			})
+			return utils.GenerateResponse(c, "Cette adresse mail est déjà utilisée", 400)
 		}
 
 		hashedPassword, err := argon2id.CreateHash(request.Password, argon2id.DefaultParams)
-
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"message": "Erreur lors de la création du mot de passe",
-			})
+			return utils.GenerateResponse(c, "Erreur lors du hashage du mot de passe", 500)
 		}
 
 		user := models.User{
@@ -94,77 +99,130 @@ func HandleAuthRoutes(app *fiber.App) {
 		}
 
 		result := database.DB.Create(&user)
-
 		if result.Error != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"message": "Erreur lors de la création du compte",
-			})
+			return utils.GenerateResponse(c, "Erreur lors de la création du compte", 500)
 		}
 
-		utils.GenerateToken(request.Email);
-
 		token, err := utils.GenerateToken(request.Email);
-
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"message": "Erreur lors de la création du token",
-			})
+			return utils.GenerateResponse(c, "Erreur lors de la génération du token", 500)
 		} else {
 			error := utils.SendVerificationEmail(user,request.Email, token)
 
 			if error != nil {
-				return c.Status(500).JSON(fiber.Map{
-					"message": "Erreur lors de l'envoi de l'email de vérification",
-				})
+				return utils.GenerateResponse(c, "Erreur lors de l'envoi de l'email de vérification", 500)
 			}
 		}
 
-		return c.Status(200).JSON(fiber.Map{
-			"message" : "Compte créé avec succès",
-		})
+		return utils.GenerateResponse(c, "Compte créé avec succès", 200)
+	})
+
+	app.Post("/api/auth/login", func(c *fiber.Ctx) error {
+
+		if(c.Method() != fiber.MethodPost) {
+			return utils.GenerateResponse(c, ErrorMethod, 405)
+		}
+
+		headers := c.Get("Authorization")
+		if headers != "" {
+			token, err := utils.ExtractToken(headers)
+			if err != nil {
+				return utils.GenerateResponse(c, "Erreur lors de l'extraction du token", 500)
+			}
+
+			decodedToken, err := utils.DecodeToken(token)
+			if err != nil {
+				return utils.GenerateResponse(c, "Erreur lors du décodage du token", 500)
+			}
+
+			var user models.User
+			result := database.DB.Where("email = ?", decodedToken).Select("id").First(&user);
+			if result.Error != nil {
+				return utils.GenerateResponse(c, "Erreur serveur", 500)
+			}
+
+			session, err := utils.GenerateSessionToken(decodedToken, user.ID)
+			if err != nil {
+				return utils.GenerateResponse(c, "Erreur lors de la génération du token de session", 500);
+			}
+			return utils.GenerateResponse(c, "Connexion réussie", 200, session);
+
+		} else {
+
+			var request loginBody;
+			err := c.BodyParser(&request);
+			if err != nil {
+				return utils.GenerateResponse(c, ErrorInvalid, 400)
+			}
+						requiredFields := []string{"email", "password"}
+			for _, field := range requiredFields {
+				switch field {
+				case "email":
+					isEmpty, err := validation.IsFieldEmpty(c, request.Email, ErrorRequiredEmail)
+					if isEmpty {
+						return err
+					}
+
+				case "password":
+					isEmpty, err := validation.IsFieldEmpty(c, request.Password, ErrorRequiredPassword)
+					if isEmpty {
+						return err
+					}
+				}
+			}
+
+			var user models.User
+			result := database.DB.Where("email = ?", request.Email).First(&user);
+			if result.Error != nil {
+				return utils.GenerateResponse(c, ErrorInvalidIdentifiers, 500)
+			}
+
+			match, _, err := argon2id.CheckHash(request.Password, user.Password)
+			if err != nil || !match {
+				return utils.GenerateResponse(c, ErrorInvalidIdentifiers, 500)
+			}
+
+			if(!user.Verified) {
+				return utils.GenerateResponse(c, "Adresse mail non vérifiée", 400)
+			}
+
+			session, err := utils.GenerateSessionToken(request.Email, user.ID)
+			if err != nil {
+				return utils.GenerateResponse(c, "Erreur lors de la génération du token de session", 500)
+			}
+
+			return utils.GenerateResponse(c, "Connexion réussie", 200, session)
+		}
 	})
 
 	app.Post("/api/auth/verify-email", func (c *fiber.Ctx) error {
 
 		if(c.Method() != fiber.MethodPost) {
-			return c.Status(405).JSON(fiber.Map{
-				"message": "Méthode non autorisée",
-			})
+			return utils.GenerateResponse(c, ErrorMethod, 405)
 		}
 
 		var request verifyEmailBody;
-
 		err := c.BodyParser(&request);
-
 		if err != nil {
-			return c.Status(400).JSON(fiber.Map{
-				"message": "Requête invalide",
-			});
+			return utils.GenerateResponse(c, ErrorInvalid, 400)
 		}
 
 		requiredFields := []string{"user", "token"}
-
 		for _, field := range requiredFields {
 			switch field {
 			case "user":
-				if request.Email == "" {
-		 			return c.Status(400).JSON(fiber.Map{
-		 				"message": "L'email est requis",
-		 			})
-		 		}
+				isEmpty, err := validation.IsFieldEmpty(c, request.Email, ErrorRequiredEmail)
+				if isEmpty {
+					return err
+				}
 		 	}
 		}
 
 		verifiedUser := database.DB.Where("email = ?", request.Email).First(&models.User{}).Update("verified", true)
-
 		if verifiedUser.Error != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"message": "Erreur lors de la mise à jour de l'utilisateur",
-			})
+			return utils.GenerateResponse(c, "Erreur lors de la vérification de l'email", 500)
 		}
 
-		return c.Status(200).JSON(fiber.Map{
-			"message": "Email vérifié avec succès",
-		})
+		return utils.GenerateResponse(c, "Email vérifié avec succès", 200)
 	})
 }
