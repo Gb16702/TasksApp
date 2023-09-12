@@ -13,6 +13,7 @@ func HandleServerStart(port, DB_URL string) {
 	app.Use(cors.New());
 
 	routes.HandleAuthRoutes(app);
-	app.Listen(port);
+	routes.HandleTasksRoutes(app);
 
+	app.Listen(port);
 }

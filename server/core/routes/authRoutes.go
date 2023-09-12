@@ -36,17 +36,15 @@ type verifyEmailBody struct {
  )
 
 func HandleAuthRoutes(app *fiber.App) {
-
 	app.Post("/api/auth/register", func (c *fiber.Ctx) error {
 
 		if(c.Method() != fiber.MethodPost) {
-			return utils.GenerateResponse(c, ErrorMethod, 405)
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405)
 		}
 
 		var request body;
-		err := c.BodyParser(&request);
-		if err != nil {
-			return utils.GenerateResponse(c, ErrorInvalid, 400)
+		if err := c.BodyParser(&request); err != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
 		}
 
 		requiredFields := []struct{
@@ -120,7 +118,7 @@ func HandleAuthRoutes(app *fiber.App) {
 	app.Post("/api/auth/login", func(c *fiber.Ctx) error {
 
 		if(c.Method() != fiber.MethodPost) {
-			return utils.GenerateResponse(c, ErrorMethod, 405)
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405)
 		}
 
 		headers := c.Get("Authorization")
@@ -150,11 +148,11 @@ func HandleAuthRoutes(app *fiber.App) {
 		} else {
 
 			var request loginBody;
-			err := c.BodyParser(&request);
-			if err != nil {
-				return utils.GenerateResponse(c, ErrorInvalid, 400)
+			if err := c.BodyParser(&request); err != nil {
+				return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
 			}
-						requiredFields := []string{"email", "password"}
+
+			requiredFields := []string{"email", "password"}
 			for _, field := range requiredFields {
 				switch field {
 				case "email":
@@ -174,12 +172,12 @@ func HandleAuthRoutes(app *fiber.App) {
 			var user models.User
 			result := database.DB.Where("email = ?", request.Email).First(&user);
 			if result.Error != nil {
-				return utils.GenerateResponse(c, ErrorInvalidIdentifiers, 500)
+				return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidIdentifiers"), 500)
 			}
 
 			match, _, err := argon2id.CheckHash(request.Password, user.Password)
 			if err != nil || !match {
-				return utils.GenerateResponse(c, ErrorInvalidIdentifiers, 500)
+				return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidIdentifiers"), 500)
 			}
 
 			if(!user.Verified) {
@@ -196,15 +194,13 @@ func HandleAuthRoutes(app *fiber.App) {
 	})
 
 	app.Post("/api/auth/verify-email", func (c *fiber.Ctx) error {
-
 		if(c.Method() != fiber.MethodPost) {
-			return utils.GenerateResponse(c, ErrorMethod, 405)
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405)
 		}
 
 		var request verifyEmailBody;
-		err := c.BodyParser(&request);
-		if err != nil {
-			return utils.GenerateResponse(c, ErrorInvalid, 400)
+		if err := c.BodyParser(&request); err != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
 		}
 
 		requiredFields := []string{"user", "token"}

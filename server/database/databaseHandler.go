@@ -24,7 +24,7 @@ func ConnectToDatabase(connectionString string) {
 	log.Println("Connecté à la base de données")
 
 
-	err = DB.AutoMigrate(&models.User{})
+	err = DB.AutoMigrate(&models.User{}, &models.Task{})
 
 	if err != nil {
 		panic("Could not migrate the database");
