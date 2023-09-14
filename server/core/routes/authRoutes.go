@@ -180,16 +180,20 @@ func HandleAuthRoutes(app *fiber.App) {
 				return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidIdentifiers"), 500)
 			}
 
-			if(!user.Verified) {
-				return utils.GenerateResponse(c, "Adresse mail non vérifiée", 400)
-			}
+			// if(!user.Verified) {
+			// 	return utils.GenerateResponse(c, "Adresse mail non vérifiée", 400)
+			// }
 
 			session, err := utils.GenerateSessionToken(request.Email, user.ID)
 			if err != nil {
 				return utils.GenerateResponse(c, "Erreur lors de la génération du token de session", 500)
 			}
 
-			return utils.GenerateResponse(c, "Connexion réussie", 200, session)
+			return c.Status(200).JSON(fiber.Map{
+				"message": "Connexion réussie",
+				"session": session,
+				"ID" : user.ID,
+			})
 		}
 	})
 

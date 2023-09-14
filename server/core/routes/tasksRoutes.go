@@ -8,15 +8,15 @@ import (
 	"todoapp/database"
 	"todoapp/database/models"
 
-	"encoding/json"
-
 	"github.com/gofiber/fiber/v2"
 )
 
 type Task struct {
+	Id 			uint 	`json:"id"`
 	Uid 		uint 	`json:"uid"`
 	Name 		string 	`json:"name"`
-	Done 		bool
+	Done 		bool	`json:"done"`
+
 }
 
 type TasksResponse struct {
@@ -47,14 +47,13 @@ func HandleTasksRoutes(app *fiber.App) {
 			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
 		}
 
-		response := TasksResponse{Tasks: tasks}
-        responseToJson, err := json.Marshal(response)
-
 		if err != nil {
 			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
 		}
 
-		return utils.GenerateResponse(c, string(responseToJson), 200)
+		return c.Status(200).JSON(fiber.Map{
+			"tasks": tasks,
+		})
 	})
 
 	app.Post("/api/tasks", func(c *fiber.Ctx) error {
@@ -63,8 +62,6 @@ func HandleTasksRoutes(app *fiber.App) {
 		}
 
 		var newTask Task
-
-		fmt.Println(c.Body())
 
 		if err := c.BodyParser(&newTask); err != nil {
 			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
@@ -105,11 +102,87 @@ func HandleTasksRoutes(app *fiber.App) {
 
 		return utils.GenerateResponse(c, "Tâche créée avec succès", 200)
 	})
+
+	app.Post("/api/tasks/name", func(c *fiber.Ctx) error {
+		if c.Method() != fiber.MethodPost {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405)
+		}
+
+		var newTask Task
+		if err := c.BodyParser(&newTask); err != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
+		}
+
+		if result := database.DB.Model(&models.Task{}).Where("id = ?", newTask.Id).Update("name", newTask.Name); result.Error != nil {
+			return utils.GenerateResponse(c, "Une erreur est survenue lors de la mise à jour de la tâche", 500)
+		}
+
+		return utils.GenerateResponse(c, "Tâche mise à jour avec succès", 200)
+	})
+
+	app.Delete("/api/tasks/:id", func(c *fiber.Ctx) error {
+		if c.Method() != fiber.MethodDelete {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405)
+		}
+
+		id := c.Params("id")
+		if id == "" {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		taskId, err := strconv.Atoi(id)
+
+		if err != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		if result := database.DB.Unscoped().Where("id = ?", taskId).Delete(&models.Task{}); result.Error != nil {
+			return utils.GenerateResponse(c, "Une erreur est survenue lors de la suppression de la tâche", 500)
+		};
+
+		return utils.GenerateResponse(c, "Tâche supprimée avec succès", 200);
+	})
+
+	app.Patch("/api/tasks/:id", func(c *fiber.Ctx) error  {
+
+		if c.Method() != fiber.MethodPatch {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405)
+		}
+
+		id := c.Params("id")
+
+		if id == "" {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		taskId, err := strconv.Atoi(id)
+
+		if err != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		fmt.Println(taskId, "OKOKOK")
+
+		task := models.Task{}
+		if result := database.DB.Model(&models.Task{}).Where("id = ?", taskId).Find(&task).Update("done", !task.Done); result.Error != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		return c.Status(200).JSON(fiber.Map{
+			"message": "Tâche mise à jour avec succès",
+			"task" : task,
+		})
+	})
+
 }
 
 func getTasksByUserId(userID int) ([]Task, error) {
 	var tasks []Task;
-	result := database.DB.Where("uid = ?", userID).Find(&tasks)
+	result := database.DB.Where("uid = ?", userID).Find(&tasks).Order("created_at DESC")
+
+
+
+
 
 	if result.Error != nil {
 		return nil, result.Error
