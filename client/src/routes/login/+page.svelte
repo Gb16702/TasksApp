@@ -33,8 +33,6 @@
             })
         }
     }
-
-
 </script>
 
 <Logo className={`fill-[#fff] w-[38px] h-[38px] drop-shadow-[0_0_25px_white]`} />
@@ -55,7 +53,6 @@
         <div class="flex flex-col text-sm text-zinc-200">
             <div class="flex items-center justify-between">
                 <label for="email" class="font-medium">Mot de passe</label>
-                <a href="/" class="font-medium">Mot de passe oublié ?</a>
             </div>
             <div class="relative">
                 <Input name={type} bind:value="{formData.password}" type={type} placeholder={"•••••••"} />

@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"strconv"
 	"todoapp/core/utils"
 	"todoapp/core/utils/validation"
@@ -66,6 +65,16 @@ func HandleTasksRoutes(app *fiber.App) {
 		if err := c.BodyParser(&newTask); err != nil {
 			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
 		}
+
+		var userTasks []models.Task
+		if result := database.DB.Where("uid = ?", newTask.Uid).Find(&userTasks); result.Error != nil {
+			return utils.GenerateResponse(c, "Une erreur est survenue lors de la création de la tâche", 500)
+		}
+
+		if len(userTasks) >= 10 {
+			return utils.GenerateResponse(c, "Tu as atteint le maximum de tâches", 400)
+		}
+
 
 		requiredFields := []struct{
 			name 				string
@@ -161,8 +170,6 @@ func HandleTasksRoutes(app *fiber.App) {
 			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
 		}
 
-		fmt.Println(taskId, "OKOKOK")
-
 		task := models.Task{}
 		if result := database.DB.Model(&models.Task{}).Where("id = ?", taskId).Find(&task).Update("done", !task.Done); result.Error != nil {
 			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
@@ -174,15 +181,36 @@ func HandleTasksRoutes(app *fiber.App) {
 		})
 	})
 
+	app.Delete("/api/tasks/clear/:id", func(c *fiber.Ctx) error {
+
+		if c.Method() != fiber.MethodDelete {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorMethod"), 405);
+		}
+
+		id := c.Params("id")
+
+		if id == "" {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		userId, err := strconv.Atoi(id);
+
+		if err != nil {
+			return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidParams"), 400)
+		}
+
+		if result := database.DB.Unscoped().Where("uid = ?", userId).Delete(&models.Task{}); result.Error != nil {
+			return utils.GenerateResponse(c, "Une erreur est survenue lors de la suppression des tâches", 500)
+		}
+
+		return utils.GenerateResponse(c, "Tâches supprimées avec succès", 200)
+ 	})
+
 }
 
 func getTasksByUserId(userID int) ([]Task, error) {
 	var tasks []Task;
 	result := database.DB.Where("uid = ?", userID).Find(&tasks).Order("created_at DESC")
-
-
-
-
 
 	if result.Error != nil {
 		return nil, result.Error

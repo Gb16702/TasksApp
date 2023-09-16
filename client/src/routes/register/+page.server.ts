@@ -1,6 +1,8 @@
 import { fail, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import testPattern from '../../utils/patternTest';
+import {SERVER_URL} from "$env/static/private"
+
 
 const sleep = async (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -29,8 +31,6 @@ export const actions: Actions = {
 			errors.passwordConfirm = 'Les mots de passe ne correspondent pas';
 		}
 
-		console.log(Object.keys(errors));
-
 		if (Object.keys(errors).length > 0) {
 			const data = {
 				data: Object.fromEntries(formData),
@@ -39,7 +39,7 @@ export const actions: Actions = {
 			return fail(400, data);
 		}
 
-		const response = await fetch('http://127.0.0.1:8000/api/auth/register', {
+		const response = await fetch(SERVER_URL + '/api/auth/register', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -51,10 +51,15 @@ export const actions: Actions = {
 			})
 		});
 
-		if (!response.ok) {
-			const data = await response.json();
-			console.log(data, "data");
-			return fail(response.status, data);
+		const data = await response.json();
+
+		if (response.status != 200) {
+			return fail(400, data.message);
+		  } else {
+			return {
+			  status: 200,
+			  body: data.message
+			};
 		}
 	}
 };

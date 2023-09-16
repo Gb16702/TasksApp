@@ -6,6 +6,8 @@
     import { enhance } from "$app/forms";
     import type { ActionData, Snapshot } from "./$types"
 	import type { SubmitFunction } from "@sveltejs/kit";
+    import * as Alert from "$lib/components/ui/alert";
+
 
     let formData: {email:string, password: string, passwordConfirm: string} = {
         email: "",
@@ -26,16 +28,33 @@
 
     export let form: ActionData;
 
+    let response = false
+    let status: "success" | "error" | null = null
+    let message: any;
+
     const handleSubmit: SubmitFunction = () => {
         loading = true
-        return async ({update}) => {
-            loading = false
-            await update({
-                reset: false
-            })
+        return async ({result, update} : {result: any, update : any}) => {
+            response = true;
+            loading= false
+            setTimeout(() => {
+                response = false
+            }, 3000);
+
+            result.status == 200 ? status = "success" : status = "error"
+            message = result.data.body ?? result.data
+            await update()
         }
     }
 </script>
+
+{#if response}
+    <Alert.Root
+    variant="default"
+    title={status == "success" ? "Succès" : "Erreur"}
+    description={message}
+    type="error" />
+{/if}
 
 <Logo className={`fill-[#fff] w-[38px] h-[38px] drop-shadow-[0_0_25px_white]`} />
 <div class=" max-h-[450px] w-[440px] rounded-[8px]  py-4 px-5">

@@ -1,11 +1,12 @@
-import type { Actions } from "@sveltejs/kit";
+import { redirect, type Actions, fail } from "@sveltejs/kit";
 import decodeToken from "../utils/decodeToken";
-import type { PageServerLoad, RequestEvent } from "./$types";
+import type { PageServerLoad } from "./$types";
+import {SERVER_URL} from "$env/static/private"
 
 export const load: PageServerLoad = async ({ cookies }) => {
   const id = cookies.get("uid");
 
-  const response = await fetch(`http://127.0.0.1:8000/api/tasks/${id}`);
+  const response = await fetch(`${SERVER_URL}/api/tasks/${id}`);
 
   const { tasks } = await response.json();
 
@@ -13,6 +14,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
   return {
     tasks,
+    id,
   };
 };
 
@@ -43,7 +45,7 @@ export const actions = {
       };
     }
 
-    const response = await fetch("http://127.0.0.1:8000/api/tasks", {
+    const response = await fetch(SERVER_URL + "/api/tasks", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -56,7 +58,14 @@ export const actions = {
 
     const data = await response.json();
 
-    console.log(data);
+    if (response.status != 200) {
+      return fail(400, data.message);
+    } else {
+      return {
+        status: 200,
+        body: data.message,
+      };
+    }
   },
 
   deleteTodo: async ({ request }) => {
@@ -64,43 +73,99 @@ export const actions = {
 
     const { todo } = Object.fromEntries(formData);
 
-    const response = await fetch(`http://localhost:8000/api/tasks/${todo}`, {
+    const response = await fetch(`${SERVER_URL}/api/tasks/${todo}`, {
       method: "DELETE",
     });
 
     const data = await response.json();
 
-    console.log(data);
+    if (response.status != 200) {
+      return fail(400, data.message);
+    } else {
+      return {
+        status: 200,
+        body: data.message,
+      };
+    }
   },
 
   toggleStatus: async ({ request }) => {
     const formData = await request.formData();
     const { todo } = Object.fromEntries(formData);
 
-    const response = await fetch(`http://localhost:8000/api/tasks/${todo}`, {
+    const response = await fetch(`${SERVER_URL}/api/tasks/${todo}`, {
       method: "PATCH",
     });
 
     const data = await response.json();
 
-    return data.task.Done;
+    if (response.status != 200) {
+      return fail(400, data.message);
+    } else {
+      return {
+        status: 200,
+        body: data.message,
+      };
+    }
   },
   editName: async ({ request }) => {
     const formData = await request.formData();
 
-    const data: Record<string, unknown> = Object.fromEntries(formData);
+    const object: Record<string, unknown> = Object.fromEntries(formData);
 
-    let id: number = Number(data.id);
+    let id: number = Number(object.id);
 
-    const response = await fetch("http://127.0.0.1:8000/api/tasks/name", {
+    const response = await fetch(`${SERVER_URL}/api/tasks/name`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         id,
-        name: data.name,
+        name: object.name,
       }),
     });
+
+    const data = await response.json();
+
+    if (response.status != 200) {
+      return fail(400, data.message);
+    } else {
+      return {
+        status: 200,
+        body: data.message,
+      };
+    }
+  },
+
+  clear: async ({ request }) => {
+    const formData = await request.formData();
+
+    const object = Object.fromEntries(formData);
+
+    const response = await fetch(
+      `${SERVER_URL}/api/tasks/clear/${Number(object.userId)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.status != 200) {
+      return fail(400, data.message);
+    } else {
+      return {
+        status: 200,
+        body: data.message,
+      };
+    }
+  },
+
+  logout: async (event) => {
+    event.cookies.delete("secure__session");
+    event.cookies.delete("uid");
+
+    throw redirect(303, "/login");
   },
 } satisfies Actions;

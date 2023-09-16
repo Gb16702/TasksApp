@@ -2,4 +2,4 @@
     import "../app.css"
 </script>
 
-<div class="bg-black min-h-screen h-full flex items-center justify-center flex-col"><slot /></div>
+<div class="flex flex-col items-center justify-center h-full min-h-screen overflow-hidden bg-black"><slot /></div>

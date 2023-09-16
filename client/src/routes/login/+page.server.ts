@@ -1,3 +1,4 @@
+import { SERVER_URL } from "$env/static/private";
 import { fail, type Actions, redirect } from "@sveltejs/kit";
 
 export const actions: Actions = {
@@ -25,33 +26,41 @@ export const actions: Actions = {
       return fail(400, data);
     }
 
-    const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: user.email,
-        password: user.password,
-      }),
-    });
-
-    const data = await response.json();
-
-    cookies.set("secure__session", data.session, {
-      secure: false,
-      httpOnly: true,
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
+    try {
+      const response = await fetch(SERVER_URL +"/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: user.email,
+          password: user.password,
+        }),
       });
 
-    cookies.set("uid", data.ID, {
-      secure: false,
-      httpOnly: true,
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    })
+      const data = await response.json();
 
-    throw redirect(300, "/");
+      console.log(response);
+
+      if (response.ok) {
+        cookies.set("secure__session", data.session, {
+          secure: false,
+          httpOnly: true,
+          maxAge: 60 * 60 * 24 * 7,
+          path: "/",
+        });
+
+        cookies.set("uid", data.ID, {
+          secure: false,
+          httpOnly: true,
+          maxAge: 60 * 60 * 24 * 7,
+          path: "/",
+        });
+
+        throw redirect(303, "/");
+      }
+    } catch (error) {
+      console.log(error);
+    }
   },
 };

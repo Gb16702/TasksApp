@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"regexp"
 	"todoapp/core/utils"
 	"todoapp/core/utils/validation"
@@ -112,7 +113,7 @@ func HandleAuthRoutes(app *fiber.App) {
 			}
 		}
 
-		return utils.GenerateResponse(c, "Compte créé avec succès", 200)
+		return utils.GenerateResponse(c, "Un email a été envoyé, confirme ton adresse mail", 200)
 	})
 
 	app.Post("/api/auth/login", func(c *fiber.Ctx) error {
@@ -143,10 +144,17 @@ func HandleAuthRoutes(app *fiber.App) {
 			if err != nil {
 				return utils.GenerateResponse(c, "Erreur lors de la génération du token de session", 500);
 			}
-			return utils.GenerateResponse(c, "Connexion réussie", 200, session);
+
+			fmt.Println(session)
+
+			return c.Status(200).JSON(fiber.Map{
+				"message": "Connexion réussie",
+				"session": session,
+				"ID" : user.ID,
+			})
+
 
 		} else {
-
 			var request loginBody;
 			if err := c.BodyParser(&request); err != nil {
 				return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalid"), 400)
@@ -180,9 +188,9 @@ func HandleAuthRoutes(app *fiber.App) {
 				return utils.GenerateResponse(c, validation.GetErrorMessage("ErrorInvalidIdentifiers"), 500)
 			}
 
-			// if(!user.Verified) {
-			// 	return utils.GenerateResponse(c, "Adresse mail non vérifiée", 400)
-			// }
+			if(!user.Verified) {
+				return utils.GenerateResponse(c, "Adresse mail non vérifiée", 400)
+			}
 
 			session, err := utils.GenerateSessionToken(request.Email, user.ID)
 			if err != nil {

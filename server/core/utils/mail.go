@@ -26,9 +26,6 @@ func getEnvironmentVariables() environment {
 }
 
 func SendVerificationEmail(user models.User, email, token string) error {
-
-		fmt.Println(getEnvironmentVariables())
-
 		 m := mail.NewV3Mail()
 		 address := getEnvironmentVariables().FOUNDER_EMAIL
 		 name := "Panoups"
@@ -37,7 +34,7 @@ func SendVerificationEmail(user models.User, email, token string) error {
 		 m.SetTemplateID(getEnvironmentVariables().VERIFY_TEMPLATE_ID)
 
 		 p := mail.NewPersonalization()
-		 to := mail.NewEmail("", "delgeoffrey1@gmail.com");
+		 to := mail.NewEmail("", email);
 		 p.AddTos(to)
 
 		 p.SetDynamicTemplateData("url", getEnvironmentVariables().DEV_CLIENT_URL + "register/" + token);
@@ -54,8 +51,6 @@ func SendVerificationEmail(user models.User, email, token string) error {
 		 }
 
 		 fmt.Println(response);
-
-		 fmt.Println("Email envoyé avec succès");
 
 		return nil;
 }

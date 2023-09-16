@@ -8,7 +8,6 @@ import (
 )
 
 func HandleServerStart(port, DB_URL string) {
-
 	app := fiber.New();
 	app.Use(cors.New());
 
